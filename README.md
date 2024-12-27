@@ -9,5 +9,5 @@ pip install streamlit==1.36.0
 
 From the terminal run:
 ```
-streamlit run .\55.st-Danube3-0.5b-CPP.py
+streamlit run Web-App.py
 ```
