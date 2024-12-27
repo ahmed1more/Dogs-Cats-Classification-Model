@@ -6,5 +6,7 @@
 /vidoes/*
 /datasets.rar
 /Sample.rar
-/web-test
-/Model-arch
+/web-test.py
+/Model-arch.py
+/__pycache__/*
+/C&D_CNN_CLASSIFACTION_SAMPLE.pth
