@@ -10,11 +10,12 @@ from captum.attr import Saliency  # For analyzing influential regions
 import pandas as pd  # For creating interactive tables
 
 # Import the CNN_1 class from the model.py file
-from main import Cat_Dog_CNN
+from arch import Cat_Dog_CNN
 
 # Load the PyTorch model
-model = Cat_Dog_CNN()
-model.load_state_dict(torch.load("models/C&D_CNN_CLASSIFACTION_V2.pth", map_location=torch.device('cpu')))
+device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+model = Cat_Dog_CNN().to(device)
+model.load_state_dict(torch.load("models\depoly-83-89.pth", map_location=device))
 model.eval()
 
 # Define the necessary transformations for images
@@ -73,7 +74,7 @@ st.subheader("Choose an image, upload multiple images, or use your camera for pr
 folder_choice = st.radio("Select an image folder:", ("cats", "dogs"))
 
 if folder_choice:
-    image_folder = "training_set_Sample/Cat" if folder_choice == "cats" else "training_set_Sample/Dog"
+    image_folder = "test_set_Sample/Cat" if folder_choice == "cats" else "test_set_Sample/Dog"
     if os.path.exists(image_folder):
         image_files = os.listdir(image_folder)
         if len(image_files) > 0:

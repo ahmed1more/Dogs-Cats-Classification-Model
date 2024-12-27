@@ -9,6 +9,9 @@
 /web-test.py
 /Model-arch.py
 /sample-model.pth
+/archive.zip
+/archive/*
+/Proposal.pdf
 ##
 __pycache__/
 *.pyc
