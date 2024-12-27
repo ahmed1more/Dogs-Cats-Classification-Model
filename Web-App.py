@@ -73,7 +73,7 @@ st.subheader("Choose an image, upload multiple images, or use your camera for pr
 folder_choice = st.radio("Select an image folder:", ("cats", "dogs"))
 
 if folder_choice:
-    image_folder = "training_set/Cat" if folder_choice == "cats" else "training_set/Dog"
+    image_folder = "training_set_Sample/Cat" if folder_choice == "cats" else "training_set_Sample/Dog"
     if os.path.exists(image_folder):
         image_files = os.listdir(image_folder)
         if len(image_files) > 0:

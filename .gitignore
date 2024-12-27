@@ -8,5 +8,8 @@
 /Sample.rar
 /web-test.py
 /Model-arch.py
-/__pycache__/*
-/C&D_CNN_CLASSIFACTION_SAMPLE.pth
+/sample-model.pth
+##
+__pycache__/
+*.pyc
+*.pyo
