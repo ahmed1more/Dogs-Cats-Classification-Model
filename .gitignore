@@ -12,6 +12,7 @@
 /archive.zip
 /archive/*
 /Proposal.pdf
+/code-img/*
 ##
 __pycache__/
 *.pyc

@@ -15,7 +15,7 @@ from arch import Cat_Dog_CNN
 # Load the PyTorch model
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 model = Cat_Dog_CNN().to(device)
-model.load_state_dict(torch.load("models\depoly-83-89.pth", map_location=device))
+model.load_state_dict(torch.load("models\depoly-85-91.pth", map_location=device))
 model.eval()
 
 # Define the necessary transformations for images
