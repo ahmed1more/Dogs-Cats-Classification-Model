@@ -9,113 +9,140 @@ import numpy as np
 from captum.attr import Saliency  # For analyzing influential regions
 import pandas as pd  # For creating interactive tables
 
-# Import the CNN_1 class from the model.py file
+# Import the Cat_Dog_CNN class from the arch.py file
 from arch import Cat_Dog_CNN
 
-# Load the PyTorch model
+# --- Configuration & Model Loading ---
+# Setup device (Use GPU if available, otherwise CPU)
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+
+# Initialize and load the weights into the model
 model = Cat_Dog_CNN().to(device)
 model.load_state_dict(torch.load("models\depoly-85-91.pth", map_location=device))
+
 model.eval()
 
-# Define the necessary transformations for images
+# Define the preprocessing transformations (Must match training preprocessing)
 normalize = transforms.Normalize(mean=[0.485, 0.456, 0.406],
-                                     std=[0.229, 0.224, 0.225])
-transform = transforms.Compose([transforms.Resize(255),
-                                      transforms.CenterCrop(224),
-                                      transforms.ToTensor(),
-                                      normalize])
+                                 std=[0.229, 0.224, 0.225])
 
-# Function for image analysis
-def predict_image(image):
-    img_tensor = transform(image).unsqueeze(0)  # Apply transformations and add batch dimension
-    with torch.no_grad():  # Disable gradient computation for performance improvement
+transform = transforms.Compose([
+    transforms.Resize(255),
+    transforms.CenterCrop(224),
+    transforms.ToTensor(),
+    normalize
+])
+
+# --- Core Functions ---
+
+def predict_image(image, threshold=0.75):
+    """
+    Analyzes the image and returns the label, confidence, and raw probabilities.
+    Includes a threshold to detect if the image is neither a cat nor a dog.
+    """
+    # Preprocess image and add batch dimension (Batch Size = 1)
+    img_tensor = transform(image).unsqueeze(0).to(device)
+    
+    with torch.no_grad():  # Disable gradients for faster inference
         output = model(img_tensor)
-        probs = torch.nn.functional.softmax(output, dim=1)[0]  # Get probabilities for each class
-        predicted = torch.argmax(probs).item()  # Get the predicted class
-        prediction_label = "Dog" if predicted == 1 else "Cat"
-        prediction_prob = probs[predicted].item()
-    return prediction_label, prediction_prob, probs, img_tensor
+        # Convert raw output (logits) to probabilities
+        probs = torch.nn.functional.softmax(output, dim=1)[0]
+        # Get the highest probability and its corresponding index
+        prediction_prob, predicted = torch.max(probs, dim=0)
+        
+        # Logic for 'No one': If the highest confidence is below our threshold
+        if prediction_prob < threshold:
+            prediction_label = "No one (Unknown)"
+        else:
+            prediction_label = "Dog" if predicted == 1 else "Cat"
+            
+    return prediction_label, prediction_prob.item(), probs, img_tensor
 
-# Function to play audio based on text
 def play_audio(text):
-    tts = gTTS(text=text, lang='en')  # Convert text to speech
+    """Converts text to speech and plays it in the Streamlit app."""
+    tts = gTTS(text=text, lang='en')
     with tempfile.NamedTemporaryFile(delete=False, suffix=".mp3") as fp:
-        tts.save(fp.name)  # Save audio to a temporary file
-        st.audio(fp.name, format="audio/mp3")  # Play the audio
+        tts.save(fp.name)
+        st.audio(fp.name, format="audio/mp3")
 
-# Function to generate Saliency Map
-def generate_saliency_map(model, img_tensor):
-    saliency = Saliency(model)
-    img_tensor.requires_grad_()  # Enable gradient computation for the image
-    grads = saliency.attribute(img_tensor, target=1)  # Extract gradients for the "Dog" class
-    grads = grads.squeeze().cpu().numpy()
-    saliency_map = np.maximum(grads, 0)  # Keep only positive values
-    saliency_map = saliency_map.mean(axis=0)  # Calculate the average across channels
-    return saliency_map
-
-# Common function to process and predict images
-def process_and_predict(image, image_caption="Image"):
+# Updated function to accept threshold
+def process_and_predict(image, threshold, image_caption="Image"):
     st.image(image, caption=image_caption, use_container_width=True)
 
-    # Prediction
-    label, probability, probabilities, img_tensor = predict_image(image)
-    st.write(f"Prediction: **{label}** with probability: **{probability*100:.2f}%**")
-    st.write(f"Probabilities: **Cat**: {probabilities[0]*100:.2f}%, **Dog**: {probabilities[1]*100:.2f}%")
+    # Now we pass the threshold from the slider here
+    label, probability, probabilities, _ = predict_image(image, threshold=threshold)
+    
+    if label == "No one (Unknown)":
+        st.warning(f"Result: **{label}** (Confidence: {probability*100:.2f}%)")
+        play_audio("I am not sure what this is.")
+    else:
+        st.success(f"Prediction: **{label}** ({probability*100:.2f}%)")
+        play_audio(f"The prediction is {label}.")
+# --- Streamlit UI Layout ---
 
-    # Play audio based on the result
-    play_audio(f"The prediction is {label} with probability {probability*100:.2f} percent.")
+st.title("Smart Cat vs Dog Classifier")
+st.sidebar.header("Settings")
+# Adding a slider so you can adjust the "Unknown" sensitivity live
+conf_threshold = st.sidebar.slider("Confidence Threshold", 0.0, 1.0, 0.9)
 
-# Streamlit Interface
-st.title("Cat vs Dog Classifier with Advanced Features")
-st.subheader("Choose an image, upload multiple images, or use your camera for predictions.")
+st.subheader("Predict using Folder, Upload, or Camera")
 
-# **Select images from a folder:**
+# Section 1: Select from existing local folders
 folder_choice = st.radio("Select an image folder:", ("cats", "dogs"))
 
 if folder_choice:
     image_folder = "test_set_Sample/Cat" if folder_choice == "cats" else "test_set_Sample/Dog"
     if os.path.exists(image_folder):
         image_files = os.listdir(image_folder)
-        if len(image_files) > 0:
-            selected_image = st.selectbox("Choose an image from the folder:", image_files)
+        if image_files:
+            selected_image = st.selectbox("Choose an image:", image_files)
             image_path = os.path.join(image_folder, selected_image)
-            if st.button(f"Predict {selected_image}"):
+            if st.button(f"Analyze {selected_image}"):
                 image = Image.open(image_path)
-                process_and_predict(image, f"Selected Image: {selected_image}")
+                process_and_predict(image,conf_threshold, f"Selected: {selected_image}")
         else:
-            st.error(f"No images found in the '{folder_choice}' folder.")
+            st.error("Folder is empty.")
     else:
-        st.error(f"Image folder '{image_folder}' not found. Please check the path.")
+        st.error(f"Path '{image_folder}' not found.")
 
-# **Upload a batch of images**
-uploaded_files = st.file_uploader("Upload images for prediction and comparison", type=["jpg", "png", "jpeg"], accept_multiple_files=True)
+# Section 2: File Uploader (Batch Support)
+uploaded_files = st.file_uploader("Upload images", type=["jpg", "png", "jpeg"], accept_multiple_files=True)
 
 if uploaded_files:
-    st.subheader("Image Comparison and Predictions")
+    st.divider()
+    cols = st.columns(3) # Display 3 images per row
+    for idx, file in enumerate(uploaded_files):
+        with cols[idx % 3]:
+            img = Image.open(file)
+            label, prob, _, _ = predict_image(img, threshold=conf_threshold)
+            st.image(img, caption=file.name)
+            st.write(f"**{label}**")
 
-    num_cols = 3  # Number of images per row
-    rows = [uploaded_files[i:i + num_cols] for i in range(0, len(uploaded_files), num_cols)]
+# Initialize the camera state (Put this right before the camera block)
+if 'show_camera' not in st.session_state:
+    st.session_state.show_camera = False
 
-    for row in rows:
-        cols = st.columns(len(row))
-        for idx, uploaded_file in enumerate(row):
-            with cols[idx]:
-                image = Image.open(uploaded_file)
-                st.image(image, caption=uploaded_file.name, use_container_width=True)
-                
-                # Prediction for each image
-                label, probability, _, _ = predict_image(image)
-                st.write(f"Prediction: **{label}**")
-                st.write(f"Confidence: **{probability*100:.2f}%**")
+st.divider()
+st.subheader("Camera Support")
 
-                if st.button(f"Play Sound for {uploaded_file.name}", key=f"sound_{uploaded_file.name}"):
-                    play_audio(f"The prediction is {label} with a confidence of {probability*100:.2f} percent.")
+# Logic for Opening/Closing the camera
+if not st.session_state.show_camera:
+    # If camera is closed, show "Open" button
+    if st.button("📷 Open Camera"):
+        st.session_state.show_camera = True
+        st.rerun() 
+else:
+    # If camera is open, show "Close" button
+    if st.button("❌ Close Camera"):
+        st.session_state.show_camera = False
+        st.rerun()
 
-# **Camera Support:**
-camera_image = st.camera_input("Take a picture using your camera")
+# This part only runs if the user clicked "Open Camera"
+if st.session_state.show_camera:
+    camera_image = st.camera_input("Take a picture using your camera")
 
-if camera_image:
-    image = Image.open(camera_image)
-    st.subheader("Camera Image Prediction:")
-    process_and_predict(image, "Captured Image")
+    if camera_image:
+        image = Image.open(camera_image)
+        st.subheader("Camera Image Prediction:")
+        # Call the processing function we defined earlier
+        process_and_predict(image,conf_threshold, "Captured Image")
