@@ -18,7 +18,7 @@ device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 # Initialize and load the weights into the model
 model = Cat_Dog_CNN().to(device)
-model.load_state_dict(torch.load("models\depoly-85-91.pth", map_location=device))
+model.load_state_dict(torch.load("models/depoly-85-91.pth", map_location=device))
 
 model.eval()
 
@@ -110,13 +110,18 @@ uploaded_files = st.file_uploader("Upload images", type=["jpg", "png", "jpeg"], 
 
 if uploaded_files:
     st.divider()
+    st.info(f"Detected {len(uploaded_files)} images. Click 'Analyze' to process each one.")
+    
     cols = st.columns(3) # Display 3 images per row
     for idx, file in enumerate(uploaded_files):
         with cols[idx % 3]:
             img = Image.open(file)
-            label, prob, _, _ = predict_image(img, threshold=conf_threshold)
-            st.image(img, caption=file.name)
-            st.write(f"**{label}**")
+            st.image(img, caption=file.name, use_container_width=True)
+            
+            # Add a button for each image to trigger the full prediction
+            if st.button(f"Analyze {file.name}", key=f"btn_{idx}"):
+                # This now calls the full function (UI + Audio + Logic)
+                process_and_predict(img, conf_threshold, f"Uploaded: {file.name}")
 
 # Initialize the camera state (Put this right before the camera block)
 if 'show_camera' not in st.session_state:
